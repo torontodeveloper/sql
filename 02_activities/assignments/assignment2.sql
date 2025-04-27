@@ -20,6 +20,8 @@ The `||` values concatenate the columns into strings.
 Edit the appropriate columns -- you're making two edits -- and the NULL rows will be fixed. 
 All the other rows will remain the same.) */
 
+SELECT product_name ||' ,'|| coalesce(nullif(product_size,' '),' ')||'('||coalesce(nullif(product_qty_type,'unit'),'unit')||')' FROM product;
+
 
 
 --Windowed Functions
@@ -32,6 +34,9 @@ each new market date for each customer, or select only the unique market dates p
 (without purchase details) and number those visits. 
 HINT: One of these approaches uses ROW_NUMBER() and one uses DENSE_RANK(). */
 
+SELECT customer_id,market_date,row_number() over (PARTITION by market_date order by customer_id) AS MarketVists FROM customer_purchases;
+
+SELECT customer_id,market_date,dense_rank() over (PARTITION by market_date order by customer_id) AS MarketVists FROM customer_purchases;
 
 
 /* 2. Reverse the numbering of the query from a part so each customer’s most recent visit is labeled 1, 
