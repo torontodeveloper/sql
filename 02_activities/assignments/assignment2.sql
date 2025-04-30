@@ -20,6 +20,8 @@ The `||` values concatenate the columns into strings.
 Edit the appropriate columns -- you're making two edits -- and the NULL rows will be fixed. 
 All the other rows will remain the same.) */
 
+SELECT product_name ||' ,'|| coalesce(nullif(product_size,' '),' ')||'('||coalesce(nullif(product_qty_type,'unit'),'unit')||')' FROM product;
+
 
 
 --Windowed Functions
@@ -32,17 +34,23 @@ each new market date for each customer, or select only the unique market dates p
 (without purchase details) and number those visits. 
 HINT: One of these approaches uses ROW_NUMBER() and one uses DENSE_RANK(). */
 
+SELECT customer_id,market_date,row_number() over (PARTITION by customer_id) AS MarketVists FROM customer_purchases;
+
+-- This is not required to answer above question, i am leaving it here just fyi
+SELECT customer_id,market_date,dense_rank() over (PARTITION by customer_id order by customer_id) AS MarketVists FROM customer_purchases;
 
 
 /* 2. Reverse the numbering of the query from a part so each customer’s most recent visit is labeled 1, 
 then write another query that uses this one as a subquery (or temp table) and filters the results to 
 only the customer’s most recent visit. */
 
+SELECT customer_id,market_date,row_number() over (PARTITION by customer_id order by market_date DESC) AS MarketVists FROM customer_purchases;
 
 
 /* 3. Using a COUNT() window function, include a value along with each row of the 
 customer_purchases table that indicates how many different times that customer has purchased that product_id. */
 
+SELECT customer_id,product_id,count(product_id),market_date,row_number() over (PARTITION by customer_id) AS MarketVists FROM customer_purchases group by customer_id,product_id;
 
 
 -- String manipulations
@@ -58,8 +66,11 @@ Remove any trailing or leading whitespaces. Don't just use a case statement for 
 Hint: you might need to use INSTR(product_name,'-') to find the hyphens. INSTR will help split the column. */
 
 
+SELECT product_name,trim(substr(product_name,NULLIF(instr(product_name,'-'),0)+1)) AS description FROM product;
 
 /* 2. Filter the query to show any product_size value that contain a number with REGEXP. */
+
+SELECT product_name,trim(substr(product_name,NULLIF(instr(product_name,'-'),0)+1)) AS description FROM product WHERE  product_size glob '*[0-9]*';
 
 
 
@@ -73,7 +84,13 @@ HINT: There are a possibly a few ways to do this query, but if you're struggling
 3) Query the second temp table twice, once for the best day, once for the worst day, 
 with a UNION binding them. */
 
+DROP TABLE IF EXISTS temp.sales_data
 
+CREATE TABLE temp.sales_data AS
+
+SELECT market_date,quantity*cost_to_customer_per_qty as Sales FROM customer_purchases group by market_date
+UNION 
+SELECT market_date,quantity*cost_to_customer_per_qty AS Sales FROM customer_purchases
 
 
 /* SECTION 3 */
@@ -90,6 +107,11 @@ How many customers are there (y).
 Before your final group by you should have the product of those two queries (x*y).  */
 
 
+SELECT DISTINCT vi.vendor_id,v.vendor_name,cp.quantity*cp.cost_to_customer_per_qty As SalesDollars, p.product_name,cp.product_id,customer_id FROM vendor_inventory vi CROSS JOIN customer_purchases cp
+
+INNER JOIN product p ON p.product_id=cp.product_id 
+
+INNER JOIN vendor v ON v.vendor_id=vi.vendor_id
 
 -- INSERT
 /*1.  Create a new table "product_units". 
@@ -97,19 +119,25 @@ This table will contain only products where the `product_qty_type = 'unit'`.
 It should use all of the columns from the product table, as well as a new column for the `CURRENT_TIMESTAMP`.  
 Name the timestamp column `snapshot_timestamp`. */
 
+DROP TABLE IF EXISTS temp.product_units;
+
+CREATE TABLE temp.product_units AS 
+SELECT p.*, datetime() as snapshot_timestamp FROM product p WHERE product_qty_type='unit';
+
 
 
 /*2. Using `INSERT`, add a new row to the product_units table (with an updated timestamp). 
 This can be any product you desire (e.g. add another record for Apple Pie). */
+INSERT INTO temp.product_units VALUES(1001,'Sql for Dummies','1.5 lbs',2001,'unit',datetime());
 
-
-
+--testing records in temp table
+SELECT * FROM temp.product_units;
 -- DELETE
 /* 1. Delete the older record for the whatever product you added. 
 
 HINT: If you don't specify a WHERE clause, you are going to have a bad time.*/
 
-
+DELETE FROM temp.product_units WHERE product_id=1001;
 
 -- UPDATE
 /* 1.We want to add the current_quantity to the product_units table. 
@@ -128,6 +156,12 @@ Finally, make sure you have a WHERE statement to update the right row,
 	you'll need to use product_units.product_id to refer to the correct row within the product_units table. 
 When you have all of these components, you can run the update statement. */
 
+-- I am having trouble to update quanity for respective product_id
+ALTER TABLE product_units
+ADD current_quantity INT;
+UPDATE temp.product_units SET current_quantity = (
+SELECT product_id,coalesce(quantity,0) FROM vendor_inventory  group by product_id
+)
 
 
 
